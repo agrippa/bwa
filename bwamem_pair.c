@@ -12,7 +12,6 @@
 #  include "malloc_wrap.h"
 #endif
 
-
 #define MIN_RATIO     0.8
 #define MIN_DIR_CNT   10
 #define MIN_DIR_RATIO 0.05
@@ -48,7 +47,7 @@ void mem_pestat(const mem_opt_t *opt, int64_t l_pac, int n, const mem_alnreg_v *
 	int i, d, max;
 	uint64_v isize[4];
 	memset(pes, 0, 4 * sizeof(mem_pestat_t));
-	memset(isize, 0, sizeof(kvec_t(int)) * 4);
+	memset(isize, 0, sizeof(uint64_v) * 4);
 	for (i = 0; i < n>>1; ++i) {
 		int dir;
 		int64_t is;
@@ -130,7 +129,7 @@ int mem_matesw(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 		is_rev = (r>>1 != (r&1)); // whether to reverse complement the mate
 		is_larger = !(r>>1); // whether the mate has larger coordinate
 		if (is_rev) {
-			rev = malloc(l_ms); // this is the reverse complement of $ms
+			rev = (uint8_t *)malloc(l_ms); // this is the reverse complement of $ms
 			for (i = 0; i < l_ms; ++i) rev[l_ms - 1 - i] = ms[i] < 4? 3 - ms[i] : 4;
 			seq = rev;
 		} else seq = (uint8_t*)ms;
@@ -252,7 +251,6 @@ int mem_sam_pe(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, co
 	extern int mem_mark_primary_se(const mem_opt_t *opt, int n, mem_alnreg_t *a, int64_t id);
 	extern int mem_approx_mapq_se(const mem_opt_t *opt, const mem_alnreg_t *a);
 	extern void mem_reg2sam(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, bseq1_t *s, mem_alnreg_v *a, int extra_flag, const mem_aln_t *m);
-	extern char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const char *query);
 
 	int n = 0, i, j, z[2], o, subo, n_sub, extra_flag = 1, n_pri[2], n_aa[2];
 	kstring_t str;

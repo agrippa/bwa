@@ -39,6 +39,8 @@
 #  include "malloc_wrap.h"
 #endif
 
+static bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c);
+
 void bwt_gen_cnt_table(bwt_t *bwt)
 {
 	int i, j;
@@ -104,7 +106,7 @@ static inline int __occ_aux(uint64_t y, int c)
 	return ((y + (y >> 4)) & 0xf0f0f0f0f0f0f0full) * 0x101010101010101ull >> 56;
 }
 
-bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c)
+static bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c)
 {
 	bwtint_t n;
 	uint32_t *p, *end;
@@ -259,15 +261,17 @@ int bwt_match_exact_alt(const bwt_t *bwt, int len, const ubyte_t *str, bwtint_t 
  * Bidirectional BWT *
  *********************/
 
-void bwt_extend(const bwt_t *bwt, const bwtintv_t *ik, bwtintv_t ok[4], int is_back)
+void bwt_extend(const bwt_t * __restrict__ bwt, const bwtintv_t * __restrict__ ik, bwtintv_t ok[4], const int is_back)
 {
 	bwtint_t tk[4], tl[4];
 	int i;
 	bwt_2occ4(bwt, ik->x[!is_back] - 1, ik->x[!is_back] - 1 + ik->x[2], tk, tl);
-	for (i = 0; i != 4; ++i) {
+
+	for (i = 0; i < 4; ++i) {
 		ok[i].x[!is_back] = bwt->L2[i] + 1 + tk[i];
 		ok[i].x[2] = tl[i] - tk[i];
 	}
+
 	ok[3].x[is_back] = ik->x[is_back] + (ik->x[!is_back] <= bwt->primary && ik->x[!is_back] + ik->x[2] - 1 >= bwt->primary);
 	ok[2].x[is_back] = ok[3].x[is_back] + ok[3].x[2];
 	ok[1].x[is_back] = ok[2].x[is_back] + ok[2].x[2];

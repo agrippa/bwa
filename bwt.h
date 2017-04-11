@@ -79,9 +79,9 @@ typedef struct { size_t n, m; bwtintv_t *a; } bwtintv_v;
 
 #define bwt_set_intv(bwt, c, ik) ((ik).x[0] = (bwt)->L2[(int)(c)]+1, (ik).x[2] = (bwt)->L2[(int)(c)+1]-(bwt)->L2[(int)(c)], (ik).x[1] = (bwt)->L2[3-(c)]+1, (ik).info = 0)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
 
 	void bwt_dump_bwt(const char *fn, const bwt_t *bwt);
 	void bwt_dump_sa(const char *fn, const bwt_t *bwt);
@@ -97,7 +97,7 @@ extern "C" {
 
 	void bwt_bwtupdate_core(bwt_t *bwt);
 
-	bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c);
+	// bwtint_t bwt_occ(const bwt_t *bwt, bwtint_t k, ubyte_t c);
 	void bwt_occ4(const bwt_t *bwt, bwtint_t k, bwtint_t cnt[4]);
 	bwtint_t bwt_sa(const bwt_t *bwt, bwtint_t k);
 
@@ -123,8 +123,8 @@ extern "C" {
 
 	int bwt_seed_strategy1(const bwt_t *bwt, int len, const uint8_t *q, int x, int min_len, int max_intv, bwtintv_t *mem);
 
-#ifdef __cplusplus
-}
-#endif
+// #ifdef __cplusplus
+// }
+// #endif
 
 #endif

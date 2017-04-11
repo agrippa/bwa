@@ -33,13 +33,13 @@
 #  include "malloc_wrap.h"
 #endif
 
-#ifdef __GNUC__
-#define LIKELY(x) __builtin_expect((x),1)
-#define UNLIKELY(x) __builtin_expect((x),0)
-#else
+// #ifdef __GNUC__
+// #define LIKELY(x) __builtin_expect((x),1)
+// #define UNLIKELY(x) __builtin_expect((x),0)
+// #else
 #define LIKELY(x) (x)
 #define UNLIKELY(x) (x)
-#endif
+// #endif
 
 const kswr_t g_defr = { 0, -1, -1, -1, -1, -1, -1 };
 
@@ -377,15 +377,18 @@ typedef struct {
 	int32_t h, e;
 } eh_t;
 
-int ksw_extend2(int qlen, const uint8_t *query, int tlen, const uint8_t *target, int m, const int8_t *mat, int o_del, int e_del, int o_ins, int e_ins, int w, int end_bonus, int zdrop, int h0, int *_qle, int *_tle, int *_gtle, int *_gscore, int *_max_off)
+int ksw_extend2(const int qlen, const uint8_t * __restrict__ query, const int tlen,
+        const uint8_t * __restrict__ target, const int m, const int8_t * __restrict__ mat, const int o_del, const int e_del,
+        const int o_ins, const int e_ins, int w, const int end_bonus, const int zdrop, const int h0,
+        int * __restrict__ _qle, int * __restrict__ _tle, int * __restrict__ _gtle, int * __restrict__ _gscore, int * __restrict__ _max_off)
 {
 	eh_t *eh; // score array
 	int8_t *qp; // query profile
 	int i, j, k, oe_del = o_del + e_del, oe_ins = o_ins + e_ins, beg, end, max, max_i, max_j, max_ins, max_del, max_ie, gscore, max_off;
 	assert(h0 > 0);
 	// allocate memory
-	qp = malloc(qlen * m);
-	eh = calloc(qlen + 1, 8);
+	qp = (int8_t *)malloc(qlen * m);
+	eh = (eh_t *)calloc(qlen + 1, 8);
 	// generate the query profile
 	for (k = i = 0; k < m; ++k) {
 		const int8_t *p = &mat[k * m];
@@ -397,8 +400,13 @@ int ksw_extend2(int qlen, const uint8_t *query, int tlen, const uint8_t *target,
 		eh[j].h = eh[j-1].h - e_ins;
 	// adjust $w if it is too large
 	k = m * m;
-	for (i = 0, max = 0; i < k; ++i) // get the max score
+    max = 0;
+
+#pragma omp simd reduction(max:max) aligned(mat)
+	for (i = 0; i < k; ++i) { // get the max score
 		max = max > mat[i]? max : mat[i];
+    }
+
 	max_ins = (int)((double)(qlen * max + end_bonus - o_ins) / e_ins + 1.);
 	max_ins = max_ins > 1? max_ins : 1;
 	w = w < max_ins? w : max_ins;
@@ -421,6 +429,8 @@ int ksw_extend2(int qlen, const uint8_t *query, int tlen, const uint8_t *target,
 			h1 = h0 - (o_del + e_del * (i + 1));
 			if (h1 < 0) h1 = 0;
 		} else h1 = 0;
+
+#pragma unroll(4)
 		for (j = beg; LIKELY(j < end); ++j) {
 			// At the beginning of the loop: eh[j] = { H(i-1,j-1), E(i,j) }, f = F(i,j) and h1 = H(i,j-1)
 			// Similar to SSE2-SW, cells are computed in the following order:
@@ -428,24 +438,28 @@ int ksw_extend2(int qlen, const uint8_t *query, int tlen, const uint8_t *target,
 			//   E(i+1,j) = max{H(i,j)-gapo, E(i,j)} - gape
 			//   F(i,j+1) = max{H(i,j)-gapo, F(i,j)} - gape
 			eh_t *p = &eh[j];
-			int h, M = p->h, e = p->e; // get H(i-1,j-1) and E(i-1,j)
+			int e = p->e; // get H(i-1,j-1) and E(i-1,j)
+			const int M = p->h ? p->h + q[j] : 0;// separating H and M to disallow a cigar like "100M3I3D20M"
 			p->h = h1;          // set H(i,j-1) for the next row
-			M = M? M + q[j] : 0;// separating H and M to disallow a cigar like "100M3I3D20M"
-			h = M > e? M : e;   // e and f are guaranteed to be non-negative, so h>=0 even if M<0
-			h = h > f? h : f;
+			int h = M > e ? M : e;   // e and f are guaranteed to be non-negative, so h>=0 even if M<0
+			h = h > f ? h : f;
 			h1 = h;             // save H(i,j) to h1 for the next column
 			mj = m > h? mj : j; // record the position where max score is achieved
 			m = m > h? m : h;   // m is stored at eh[mj+1]
+
 			t = M - oe_del;
 			t = t > 0? t : 0;
+
 			e -= e_del;
-			e = e > t? e : t;   // computed E(i+1,j)
+			e = e > t ? e : t;   // computed E(i+1,j)
 			p->e = e;           // save E(i+1,j) for the next row
+
 			t = M - oe_ins;
 			t = t > 0? t : 0;
 			f -= e_ins;
 			f = f > t? f : t;   // computed F(i,j+1)
 		}
+
 		eh[end].h = h1; eh[end].e = 0;
 		if (j == qlen) {
 			max_ie = gscore > h1? max_ie : i;
@@ -494,7 +508,7 @@ static inline uint32_t *push_cigar(int *n_cigar, int *m_cigar, uint32_t *cigar, 
 	if (*n_cigar == 0 || op != (cigar[(*n_cigar) - 1]&0xf)) {
 		if (*n_cigar == *m_cigar) {
 			*m_cigar = *m_cigar? (*m_cigar)<<1 : 4;
-			cigar = realloc(cigar, (*m_cigar) << 2);
+			cigar = (uint32_t *)realloc(cigar, (*m_cigar) << 2);
 		}
 		cigar[(*n_cigar)++] = len<<4 | op;
 	} else cigar[(*n_cigar)-1] += len<<4;
@@ -510,9 +524,9 @@ int ksw_global2(int qlen, const uint8_t *query, int tlen, const uint8_t *target,
 	if (n_cigar_) *n_cigar_ = 0;
 	// allocate memory
 	n_col = qlen < 2*w+1? qlen : 2*w+1; // maximum #columns of the backtrack matrix
-	z = n_cigar_ && cigar_? malloc((long)n_col * tlen) : 0;
-	qp = malloc(qlen * m);
-	eh = calloc(qlen + 1, 8);
+	z = n_cigar_ && cigar_? (uint8_t *)malloc((long)n_col * tlen) : 0;
+	qp = (int8_t *)malloc(qlen * m);
+	eh = (eh_t *)calloc(qlen + 1, 8);
 	// generate the query profile
 	for (k = i = 0; k < m; ++k) {
 		const int8_t *p = &mat[k * m];

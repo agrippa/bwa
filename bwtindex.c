@@ -46,7 +46,6 @@
 #  include "malloc_wrap.h"
 #endif
 
-
 int is_bwt(ubyte_t *T, int n);
 
 int64_t bwa_seq_len(const char *fn_pac)
@@ -207,7 +206,7 @@ int bwa_bwt2sa(int argc, char *argv[]) // the "bwt2sa" command
 	return 0;
 }
 
-int bwa_index(int argc, char *argv[]) // the "index" command
+int bwa_index(int argc, char **argv) // the "index" command
 {
 	int c, algo_type = BWTALGO_AUTO, is_64 = 0, block_size = 10000000;
 	char *prefix = 0, *str;
@@ -244,7 +243,7 @@ int bwa_index(int argc, char *argv[]) // the "index" command
 		return 1;
 	}
 	if (prefix == 0) {
-		prefix = malloc(strlen(argv[optind]) + 4);
+		prefix = (char *)malloc(strlen(argv[optind]) + 4);
 		strcpy(prefix, argv[optind]);
 		if (is_64) strcat(prefix, ".64");
 	}

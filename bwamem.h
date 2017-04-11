@@ -108,6 +108,8 @@ extern "C" {
 	mem_opt_t *mem_opt_init(void);
 	void mem_fill_scmat(int a, int b, int8_t mat[25]);
 
+    char **mem_gen_alt(const mem_opt_t *opt, const bntseq_t *bns, const uint8_t *pac, const mem_alnreg_v *a, int l_query, const char *query); // ONLY work after mem_mark_primary_se()
+
 	/**
 	 * Align a batch of sequences and generate the alignments in the SAM format
 	 *

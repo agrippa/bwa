@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <stdio.h>
 
 /************
  * kt_for() *
@@ -117,6 +118,8 @@ static void *ktp_worker(void *data)
 
 void kt_pipeline(int n_threads, void *(*func)(void*, int, void*), void *shared_data, int n_steps)
 {
+    fprintf(stderr, "[kt_pipeline] launching %d stage pipeline with %d "
+            "threads\n", n_steps, n_threads);
 	ktp_t aux;
 	pthread_t *tid;
 	int i;
