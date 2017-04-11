@@ -1,4 +1,4 @@
-CC=			icpc
+CC?=			icpc
 #CC=			clang --analyze
 CFLAGS=		-g -Wall -Wno-unused-function -O2 -fopenmp -I$(HCLIB_ROOT)/include -std=c++11
 WRAP_MALLOC=-DUSE_MALLOC_WRAPPERS

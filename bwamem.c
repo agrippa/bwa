@@ -1219,11 +1219,6 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 		w.aux[i] = smem_aux_init();
     const int niters = ((opt->flag&MEM_F_PE) ? n>>1 : n);
 
-#ifdef USE_HCLIB
-    const char *deps[] = {"system"};
-    hclib::launch(opt->n_threads, deps, 1, [&] {
-#endif
-
     fprintf(stderr, "[mem_process_seqs] n = %d\n", n);
 
 #ifdef USE_OPENMP
@@ -1264,10 +1259,6 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
     });
 #else
 	kt_for(opt->n_threads, worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // generate alignment
-#endif
-
-#ifdef USE_HCLIB
-    });
 #endif
 
 	free(w.regs);

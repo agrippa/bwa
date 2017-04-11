@@ -360,7 +360,36 @@ int main_mem(int argc, char *argv[])
 	}
 	bwa_print_sam_hdr(aux.idx->bns, hdr_line);
 	aux.actual_chunk_size = fixed_chunk_size > 0? fixed_chunk_size : opt->chunk_size * opt->n_threads;
-	kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
+
+
+#ifdef USE_HCLIB
+    const char *deps[] = {"system"};
+    hclib::launch(opt->n_threads, deps, 1, [&] {
+#endif
+
+#ifdef USE_HCLIB
+        assert(no_mt_io == 1);
+
+        hclib::finish([&] {
+            hclib::future<ktp_data_t *> *fut1 = hclib::async_future([&] {
+                return process(&aux, 0, NULL);
+            });
+            hclib::future<ktp_data_t *> *fut2 = hclib::async_future_await([&] {
+                return process(&aux, 1, fut1->get());
+            }, fut1);
+            hclib::async_await([&] {
+                return process(&aux, 2, fut2->get());
+            });
+        });
+
+#else
+        kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
+#endif
+
+#ifdef USE_HCLIB
+    });
+#endif
+
 	free(hdr_line);
 	free(opt);
 	bwa_idx_destroy(aux.idx);
