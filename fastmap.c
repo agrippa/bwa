@@ -6,6 +6,8 @@
 #include <limits.h>
 #include <ctype.h>
 #include <math.h>
+#include <time.h>
+#include <sys/time.h>
 #include "bwa.h"
 #include "bwamem.h"
 #include "kvec.h"
@@ -13,6 +15,11 @@
 #include "bntseq.h"
 #include "kseq.h"
 KSEQ_DECLARE(gzFile)
+
+#if defined(USE_HCLIB)
+#include "hclib_cpp.h"
+#include "hclib_promise.h"
+#endif
 
 extern unsigned char nst_nt4_table[256];
 
@@ -35,12 +42,31 @@ typedef struct {
 	bseq1_t *seqs;
 } ktp_data_t;
 
+static unsigned long long current_time_ns() {
+#ifdef __MACH__
+    clock_serv_t cclock;
+    mach_timespec_t mts;
+    host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+    clock_get_time(cclock, &mts);
+    mach_port_deallocate(mach_task_self(), cclock);
+    unsigned long long s = 1000000000ULL * (unsigned long long)mts.tv_sec;
+    return (unsigned long long)mts.tv_nsec + s;
+#else
+    struct timespec t ={0,0};
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    unsigned long long s = 1000000000ULL * (unsigned long long)t.tv_sec;
+    return (((unsigned long long)t.tv_nsec)) + s;
+#endif
+}
+
 static void *process(void *shared, int step, void *_data)
 {
 	ktp_aux_t *aux = (ktp_aux_t*)shared;
 	ktp_data_t *data = (ktp_data_t*)_data;
 	int i;
 	if (step == 0) {
+        const unsigned long long start_time = current_time_ns();
+
 		ktp_data_t *ret;
 		int64_t size = 0;
 		ret = (ktp_data_t *)calloc(1, sizeof(ktp_data_t));
@@ -57,8 +83,14 @@ static void *process(void *shared, int step, void *_data)
 		for (i = 0; i < ret->n_seqs; ++i) size += ret->seqs[i].l_seq;
 		if (bwa_verbose >= 3)
 			fprintf(stderr, "[M::%s] read %d sequences (%ld bp)...\n", __func__, ret->n_seqs, (long)size);
+
+        const unsigned long long elapsed = current_time_ns() - start_time;
+        fprintf(stderr, "[process stage 0] took %f ms\n",
+            (double)elapsed / 1000000.0);
 		return ret;
 	} else if (step == 1) {
+        const unsigned long long start_time = current_time_ns();
+
 		const mem_opt_t *opt = aux->opt;
 		const bwaidx_t *idx = aux->idx;
 		if (opt->flag & MEM_F_SMARTPE) {
@@ -83,14 +115,25 @@ static void *process(void *shared, int step, void *_data)
 			free(sep[0]); free(sep[1]);
 		} else mem_process_seqs(opt, idx->bwt, idx->bns, idx->pac, aux->n_processed, data->n_seqs, data->seqs, aux->pes0);
 		aux->n_processed += data->n_seqs;
+
+        const unsigned long long elapsed = current_time_ns() - start_time;
+        fprintf(stderr, "[process stage 1] took %f ms\n",
+            (double)elapsed / 1000000.0);
+
 		return data;
 	} else if (step == 2) {
+        const unsigned long long start_time = current_time_ns();
 		for (i = 0; i < data->n_seqs; ++i) {
 			if (data->seqs[i].sam) err_fputs(data->seqs[i].sam, stdout);
 			free(data->seqs[i].name); free(data->seqs[i].comment);
 			free(data->seqs[i].seq); free(data->seqs[i].qual); free(data->seqs[i].sam);
 		}
 		free(data->seqs); free(data);
+
+        const unsigned long long elapsed = current_time_ns() - start_time;
+        fprintf(stderr, "[process stage 2] took %f ms\n",
+            (double)elapsed / 1000000.0);
+
 		return 0;
 	}
 	return 0;
@@ -361,33 +404,40 @@ int main_mem(int argc, char *argv[])
 	bwa_print_sam_hdr(aux.idx->bns, hdr_line);
 	aux.actual_chunk_size = fixed_chunk_size > 0? fixed_chunk_size : opt->chunk_size * opt->n_threads;
 
-
-#ifdef USE_HCLIB
-    const char *deps[] = {"system"};
-    hclib::launch(opt->n_threads, deps, 1, [&] {
-#endif
-
 #ifdef USE_HCLIB
         assert(no_mt_io == 1);
-
-        hclib::finish([&] {
-            hclib::future<ktp_data_t *> *fut1 = hclib::async_future([&] {
-                return process(&aux, 0, NULL);
-            });
-            hclib::future<ktp_data_t *> *fut2 = hclib::async_future_await([&] {
-                return process(&aux, 1, fut1->get());
-            }, fut1);
-            hclib::async_await([&] {
-                return process(&aux, 2, fut2->get());
-            });
-        });
-
-#else
-        kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
 #endif
 
 #ifdef USE_HCLIB
+#endif
+
+#ifdef USE_HCLIB
+    ktp_aux_t *aux_ptr = &aux;
+
+    void *out1 = process(&aux, 0, NULL);
+    void *out2 = NULL;
+
+    const char *deps[] = {"system"};
+    hclib::launch(opt->n_threads, deps, 1, [&] {
+
+        out2 = process(&aux, 1, out1);
+
+        // hclib::finish([&] {
+        //     hclib::future_t<void *> *fut1 = hclib::async_nb_future_at([=] {
+        //         return process(aux_ptr, 0, NULL);
+        //     }, hclib::get_master_place());
+        //     hclib::future_t<void *> *fut2 = hclib::async_future_await_at([=] {
+        //         return process(aux_ptr, 1, fut1->get());
+        //     }, fut1, hclib::get_master_place());
+        //     hclib::async_await_at([=] {
+        //         return process(aux_ptr, 2, fut2->get());
+        //     }, fut2, hclib::get_master_place());
+        // });
     });
+
+    process(&aux, 2, out2);
+#else
+        kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
 #endif
 
 	free(hdr_line);

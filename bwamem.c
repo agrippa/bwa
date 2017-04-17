@@ -8,6 +8,7 @@
 #ifdef USE_OPENMP
 #include <omp.h>
 #elif defined(USE_HCLIB)
+#include "hclib-locality-graph.h"
 #include "hclib_cpp.h"
 #endif
 
@@ -1200,6 +1201,10 @@ static void worker2(void *data, int i, int tid)
 	}
 }
 
+// static hclib::locale_t *static_dist(const int dim, const hclib::loop_domain_t *,
+//         const hclib::loop_domain_t *, const int mode) {
+// }
+
 void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bns, const uint8_t *pac, int64_t n_processed, int n, bseq1_t *seqs, const mem_pestat_t *pes0)
 {
 	extern void kt_for(int n_threads, void (*func)(void*,int,int), void *data, int n);
@@ -1207,6 +1212,8 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
 	mem_pestat_t pes[4];
 	double ctime, rtime;
 	int i;
+
+//     const unsigned dist_id = hclib_register_dist_func(static_dist);
 
 	ctime = cputime(); rtime = realtime();
 	global_bns = bns;
@@ -1228,10 +1235,10 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
     }
 #elif defined(USE_HCLIB)
     hclib::finish([&] {
-        hclib::loop_domain_1d *loop = new hclib::loop_domain_1d(0, niters, hclib::get_num_workers() * 8);
+        hclib::loop_domain_1d *loop = new hclib::loop_domain_1d(0, niters, hclib::get_num_workers() * 16);
         hclib::forasync1D_nb(loop, [&] (int i) {
             worker1(&w, i, hclib::get_current_worker());
-        });
+        }, false, FORASYNC_MODE_FLAT);
     });
 #else
 	kt_for(opt->n_threads, worker1, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // find mapping positions
@@ -1252,10 +1259,10 @@ void mem_process_seqs(const mem_opt_t *opt, const bwt_t *bwt, const bntseq_t *bn
     }
 #elif defined(USE_HCLIB)
     hclib::finish([&] {
-        hclib::loop_domain_1d *loop = new hclib::loop_domain_1d(0, niters, hclib::get_num_workers() * 8);
+        hclib::loop_domain_1d *loop = new hclib::loop_domain_1d(0, niters, hclib::get_num_workers() * 16);
         hclib::forasync1D_nb(loop, [&] (int i) {
             worker2(&w, i, hclib::get_current_worker());
-        });
+        }, false, FORASYNC_MODE_FLAT);
     });
 #else
 	kt_for(opt->n_threads, worker2, &w, (opt->flag&MEM_F_PE)? n>>1 : n); // generate alignment
