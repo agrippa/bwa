@@ -111,6 +111,12 @@ static void *ktp_worker(void *data)
 
 		// update step and let other workers know
 		pthread_mutex_lock(&p->mutex);
+
+        /*
+         * If on the last step or data is non-null, increment to the next step
+         * with a loop around back to 0 if we are on the last step. Otherwise,
+         * terminate the loop.
+         */
 		w->step = w->step == p->n_steps - 1 || w->data? (w->step + 1) % p->n_steps : p->n_steps;
 		if (w->step == 0) w->index = p->index++;
 		pthread_cond_broadcast(&p->cv);

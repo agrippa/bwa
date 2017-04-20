@@ -414,13 +414,16 @@ int main_mem(int argc, char *argv[])
 #ifdef USE_HCLIB
     ktp_aux_t *aux_ptr = &aux;
 
-    void *out1 = process(&aux, 0, NULL);
-    void *out2 = NULL;
 
     const char *deps[] = {"system"};
     hclib::launch(opt->n_threads, deps, 1, [&] {
 
-        out2 = process(&aux, 1, out1);
+        void *out1 = process(&aux, 0, NULL);
+        while (out1) {
+            void *out2 = process(&aux, 1, out1);
+            process(&aux, 2, out2);
+            out1 = process(&aux, 0, NULL);
+        }
 
         // hclib::finish([&] {
         //     hclib::future_t<void *> *fut1 = hclib::async_nb_future_at([=] {
@@ -434,8 +437,6 @@ int main_mem(int argc, char *argv[])
         //     }, fut2, hclib::get_master_place());
         // });
     });
-
-    process(&aux, 2, out2);
 #else
         kt_pipeline(no_mt_io? 1 : 2, process, &aux, 3);
 #endif

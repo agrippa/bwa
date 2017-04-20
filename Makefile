@@ -1,9 +1,9 @@
-CC=			icpc
+CC=			g++
 #CC=			clang --analyze
 CFLAGS=		-Wall -Wno-unused-function -O3 -fopenmp -I$(HCLIB_ROOT)/include -std=c++11
 WRAP_MALLOC=-DUSE_MALLOC_WRAPPERS
 AR=			ar
-DFLAGS=		-DUSE_OPENMP -DHAVE_PTHREAD $(WRAP_MALLOC)
+DFLAGS=		-DUSE_HCLIB -DHAVE_PTHREAD $(WRAP_MALLOC)
 LOBJS=		utils.o kthread.o kstring.o ksw.o bwt.o bntseq.o bwa.o bwamem.o bwamem_pair.o malloc_wrap.o \
 			QSufSort.o rope.o rle.o is.o bwtindex.o bwt_gen.o bwamem_extra.o
 AOBJS=		bwashm.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
@@ -12,7 +12,7 @@ AOBJS=		bwashm.o bwase.o bwaseqio.o bwtgap.o bwtaln.o bamlite.o \
 			bwtsw2_chain.o fastmap.o bwtsw2_pair.o bwt_gen.o
 PROG=		bwa
 INCLUDES=	
-LIBS=		-L$(HCLIB_ROOT)/lib -lm -lz -lpthread -lhclib $(JSMN_HOME)/libjsmn.a
+LIBS=		-L$(HCLIB_ROOT)/lib -lm -lz -lpthread -lhclib $(JSMN_HOME)/libjsmn.a -ldl
 SUBDIRS=	.
 
 ifeq ($(shell uname -s),Linux)
